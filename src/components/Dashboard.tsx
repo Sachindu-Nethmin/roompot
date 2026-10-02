@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SpendChart from "./SpendChart";
+import { useOnDeviceAI, type AIStatus } from "./useOnDeviceAI";
 import { postJson } from "@/lib/client";
 
 type Member = { id: string; name: string };
 type State = {
   me: Member;
+  aiMode: "browser" | "server";
   model: string;
   room: { id: string; name: string; inviteCode: string; currency: string };
   members: Member[];
@@ -50,9 +52,11 @@ export default function Dashboard() {
   const [text, setText] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [stage, setStage] = useState("reading…");
   const [error, setError] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(0);
+  const ai = useOnDeviceAI(state?.aiMode === "browser");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/state", { cache: "no-store" });
@@ -79,17 +83,49 @@ export default function Dashboard() {
     e?.preventDefault();
     if ((!text.trim() && !image) || sending) return;
     setSending(true);
+    setStage("reading…");
     setError("");
-    const body = { text, imageBase64: image ?? undefined };
+    const msg = text.trim();
+    const img = image;
     setText("");
     setImage(null);
     try {
-      await postJson("/api/chat", body);
+      if (state?.aiMode === "browser") await sendOnDevice(msg, img);
+      else await postJson("/api/chat", { text: msg, imageBase64: img ?? undefined });
     } catch (err) {
       setError((err as Error).message);
     }
     await load();
     setSending(false);
+  }
+
+  /** Browser mode: read the bill and run Gemma on this device, then send only the result. */
+  async function sendOnDevice(msg: string, img: string | null) {
+    if (!state) return;
+    const local = await import("@/lib/browser-ai");
+    let body = msg;
+    const receipt = !!img;
+    if (img) {
+      setStage("reading the bill on your device…");
+      const ocr = await local.readReceipt(`data:image/jpeg;base64,${img}`);
+      body = [msg, ocr].filter(Boolean).join("\n");
+    }
+    const engine = ai.status.phase === "ready" ? ai.engine.current : null;
+    if (!engine) return postJson("/api/chat", { text: body, client: { parsed: null, receipt } });
+
+    setStage("Gemma is thinking on your device…");
+    let parsed: unknown = null;
+    try {
+      parsed = await local.extractOnDevice(engine, body, state.members, state.me, state.room.currency, receipt);
+    } catch (err) {
+      console.error("on-device extraction failed", err);
+    }
+    let answer: string | undefined;
+    if ((parsed as { intent?: string } | null)?.intent === "question") {
+      const { system } = await fetch("/api/ask-context").then((r) => r.json());
+      answer = await local.answerOnDevice(engine, system, body).catch(() => undefined);
+    }
+    await postJson("/api/chat", { text: body, client: { parsed, answer, receipt } });
   }
 
   async function markPaid(from: string, to: string, amount: number) {
@@ -144,7 +180,7 @@ export default function Dashboard() {
           <div className="flex flex-col items-start">
             <span className="text-[11px] text-ink-3 mb-0.5 px-1">🍳 RoomPot</span>
             <div className="rounded-2xl rounded-bl-md px-3.5 py-2 text-ink-2 animate-pulse" style={{ background: "var(--bubble-bot)" }}>
-              reading…
+              {stage}
             </div>
           </div>
         )}
@@ -169,6 +205,7 @@ export default function Dashboard() {
             </button>
           </div>
         )}
+        {state.aiMode === "browser" && <AIBar status={ai.status} onStart={ai.start} />}
         {error && <p className="text-bad text-sm">{error}</p>}
         <form onSubmit={send} className="flex gap-2 items-center">
           <label className="btn-ghost cursor-pointer text-lg leading-none py-2" title="Send a photo of the bill">
@@ -327,7 +364,7 @@ export default function Dashboard() {
           <h1 className="font-bold text-lg truncate">🍳 {state.room.name}</h1>
           <div className="text-xs text-ink-3 truncate">
             Invite code <span className="font-mono font-semibold text-ink-2 tracking-wider">{state.room.inviteCode}</span> · AI:{" "}
-            <span className="font-mono">{state.model}</span>
+            <span className="font-mono">{state.aiMode === "browser" ? "Gemma 2B on your device" : state.model}</span>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -354,6 +391,51 @@ export default function Dashboard() {
         <div className={`min-w-0 ${tab === "chat" ? "" : "hidden lg:block"}`}>{chat}</div>
         <div className={`min-w-0 ${tab === "money" ? "" : "hidden lg:block"}`}>{moneyPanel}</div>
       </div>
+    </div>
+  );
+}
+
+function AIBar({ status, onStart }: { status: AIStatus; onStart: (modelId: string) => void }) {
+  if (status.phase === "off" || status.phase === "checking") return null;
+  if (status.phase === "ready")
+    return (
+      <div className="text-xs text-ink-3 flex items-center gap-1.5">
+        <span className="inline-block w-2 h-2 rounded-full bg-good" /> Gemma is running on this device. Your messages and photos stay here.
+      </div>
+    );
+  if (status.phase === "unsupported")
+    return (
+      <p className="text-xs text-ink-3">
+        On-device AI isn&apos;t available here ({status.reason}). Simple “item price” messages still work. For the full AI, open RoomPot in
+        a recent Chrome or Edge, or Safari on iOS 26+.
+      </p>
+    );
+  if (status.phase === "loading")
+    return (
+      <div className="text-xs text-ink-2">
+        <div className="flex justify-between mb-1">
+          <span>Loading Gemma onto your device…</span>
+          <span className="tabular-nums">{Math.round(status.progress * 100)}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-surface-2">
+          <div className="h-1.5 rounded-full transition-all" style={{ width: `${status.progress * 100}%`, background: "var(--bar)" }} />
+        </div>
+        <div className="text-ink-3 truncate mt-1">{status.text}</div>
+      </div>
+    );
+  return (
+    <div className="rounded-xl bg-surface-2 p-3 text-sm flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium">{status.phase === "error" ? "Couldn't load the AI model" : "Turn on the AI"}</div>
+        <div className="text-xs text-ink-2">
+          {status.phase === "error"
+            ? status.message
+            : "Gemma runs on your phone, so your messages never leave it. One-time download of about 1.4 GB. Use Wi-Fi."}
+        </div>
+      </div>
+      <button className="btn text-sm shrink-0" onClick={() => onStart(status.modelId)}>
+        {status.phase === "error" ? "Retry" : "Turn on"}
+      </button>
     </div>
   );
 }

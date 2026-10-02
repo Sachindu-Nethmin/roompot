@@ -1,5 +1,5 @@
 import { currentUser, json } from "@/lib/auth";
-import { modelName } from "@/lib/llm";
+import { modelName, provider } from "@/lib/llm";
 import { Message } from "@/lib/models";
 import { loadLedger } from "@/lib/room";
 
@@ -14,7 +14,8 @@ export async function GET() {
 
   return json({
     me: { id: String(user._id), name: user.name },
-    model: modelName,
+    aiMode: provider === "browser" ? "browser" : "server",
+    model: provider === "browser" ? "on-device" : modelName,
     ...ledger,
     expenses: ledger.expenses.slice(0, 50),
     settlements: ledger.settlements.slice(0, 30),

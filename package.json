@@ -10,12 +10,14 @@
     "seed:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.85",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.12",
     "mongoose": "^9.10.3",
     "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

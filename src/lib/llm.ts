@@ -4,9 +4,10 @@
  * - LLM_PROVIDER=ollama (default): talks to a local Ollama server, e.g. `gemma4:E4B`.
  * - LLM_PROVIDER=openai: any OpenAI-compatible endpoint serving an open model
  *   (Google AI Studio's Gemma, vLLM, llama.cpp server, LM Studio, ...).
+ * - LLM_PROVIDER=browser: no model on the server. Each phone runs Gemma itself with WebLLM.
  */
 
-const provider = process.env.LLM_PROVIDER ?? "ollama";
+export const provider = process.env.LLM_PROVIDER ?? "ollama";
 const baseUrl = (process.env.LLM_BASE_URL ?? "http://127.0.0.1:11434").replace(/\/$/, "");
 const model = process.env.LLM_MODEL ?? "gemma4:E4B";
 const apiKey = process.env.LLM_API_KEY ?? "";
@@ -62,12 +63,4 @@ export async function complete(messages: ChatMsg[], opts: { json?: boolean } = {
   if (!res.ok) throw new Error(`LLM ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? "";
-}
-
-/** Pulls the first JSON object out of a model reply (tolerates ```json fences and chatter). */
-export function extractJson(text: string): unknown {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end <= start) throw new Error("No JSON in model reply");
-  return JSON.parse(text.slice(start, end + 1));
 }
