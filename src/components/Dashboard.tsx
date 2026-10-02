@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SpendChart from "./SpendChart";
-import { useOnDeviceAI, type AIStatus } from "./useOnDeviceAI";
+import { useOnDeviceAI, type AIMode, type AIStatus } from "./useOnDeviceAI";
 import { postJson } from "@/lib/client";
 
 type Member = { id: string; name: string };
@@ -43,7 +43,7 @@ type State = {
   };
 };
 
-const EXAMPLES = ["rice 1200, eggs 450, gas 3800", "haal 2k, pol 3k 360", "gave Kasun 1500", "what's our average daily spend?"];
+const EXAMPLES = ["rice 1200, eggs 450, gas 3800", "Kasun bought bread 200", "gave Kasun 1500", "what's our average daily spend?"];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -56,7 +56,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(0);
-  const ai = useOnDeviceAI(state?.aiMode === "browser");
+  const ai = useOnDeviceAI(!state ? "off" : state.aiMode === "browser" ? "required" : "optional");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/state", { cache: "no-store" });
@@ -90,7 +90,8 @@ export default function Dashboard() {
     setText("");
     setImage(null);
     try {
-      if (state?.aiMode === "browser") await sendOnDevice(msg, img);
+      // On-device when it's the only AI, or when this person turned on private mode and it's loaded.
+      if (state?.aiMode === "browser" || ai.status.phase === "ready") await sendOnDevice(msg, img);
       else await postJson("/api/chat", { text: msg, imageBase64: img ?? undefined });
     } catch (err) {
       setError((err as Error).message);
@@ -205,7 +206,12 @@ export default function Dashboard() {
             </button>
           </div>
         )}
-        {state.aiMode === "browser" && <AIBar status={ai.status} onStart={ai.start} />}
+        <AIBar
+          mode={state.aiMode === "browser" ? "required" : "optional"}
+          status={ai.status}
+          onStart={ai.start}
+          onStop={ai.stop}
+        />
         {error && <p className="text-bad text-sm">{error}</p>}
         <form onSubmit={send} className="flex gap-2 items-center">
           <label className="btn-ghost cursor-pointer text-lg leading-none py-2" title="Send a photo of the bill">
@@ -364,7 +370,9 @@ export default function Dashboard() {
           <h1 className="font-bold text-lg truncate">🍳 {state.room.name}</h1>
           <div className="text-xs text-ink-3 truncate">
             Invite code <span className="font-mono font-semibold text-ink-2 tracking-wider">{state.room.inviteCode}</span> · AI:{" "}
-            <span className="font-mono">{state.aiMode === "browser" ? "Gemma 2B on your device" : state.model}</span>
+            <span className="font-mono">
+              {state.aiMode === "browser" || ai.status.phase === "ready" ? "Gemma 2B on this device" : state.model}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -395,21 +403,43 @@ export default function Dashboard() {
   );
 }
 
-function AIBar({ status, onStart }: { status: AIStatus; onStart: (modelId: string) => void }) {
+function AIBar({
+  mode,
+  status,
+  onStart,
+  onStop,
+}: {
+  mode: Exclude<AIMode, "off">;
+  status: AIStatus;
+  onStart: (modelId: string) => void;
+  onStop: (modelId: string) => void;
+}) {
+  const optional = mode === "optional";
   if (status.phase === "off" || status.phase === "checking") return null;
-  if (status.phase === "ready")
-    return (
-      <div className="text-xs text-ink-3 flex items-center gap-1.5">
-        <span className="inline-block w-2 h-2 rounded-full bg-good" /> Gemma is running on this device. Your messages and photos stay here.
-      </div>
-    );
+
   if (status.phase === "unsupported")
-    return (
+    return optional ? null : (
       <p className="text-xs text-ink-3">
         On-device AI isn&apos;t available here ({status.reason}). Simple “item price” messages still work. For the full AI, open RoomPot in
         a recent Chrome or Edge, or Safari on iOS 26+.
       </p>
     );
+
+  if (status.phase === "ready")
+    return (
+      <div className="text-xs text-ink-3 flex items-center gap-1.5">
+        <span className="inline-block w-2 h-2 rounded-full bg-good shrink-0" />
+        <span className="flex-1">
+          {optional ? "Private mode: " : ""}Gemma is running on this device. Your messages and photos stay here.
+        </span>
+        {optional && (
+          <button className="underline shrink-0" onClick={() => onStop(status.modelId)}>
+            Turn off
+          </button>
+        )}
+      </div>
+    );
+
   if (status.phase === "loading")
     return (
       <div className="text-xs text-ink-2">
@@ -420,9 +450,27 @@ function AIBar({ status, onStart }: { status: AIStatus; onStart: (modelId: strin
         <div className="h-1.5 rounded-full bg-surface-2">
           <div className="h-1.5 rounded-full transition-all" style={{ width: `${status.progress * 100}%`, background: "var(--bar)" }} />
         </div>
-        <div className="text-ink-3 truncate mt-1">{status.text}</div>
+        <div className="text-ink-3 truncate mt-1">
+          {optional ? "Until it's ready, messages use the shared AI. " : ""}
+          {status.text}
+        </div>
       </div>
     );
+
+  if (optional)
+    return (
+      <div className="text-xs text-ink-3 flex items-center gap-1.5">
+        <span className="flex-1 min-w-0">
+          {status.phase === "error"
+            ? `Private mode couldn't load: ${status.message}`
+            : "🔒 Private mode: run the AI on this device instead (one-time download, about 1.4 GB)."}
+        </span>
+        <button className="btn-ghost text-xs shrink-0" onClick={() => onStart(status.modelId)}>
+          {status.phase === "error" ? "Retry" : "Turn on"}
+        </button>
+      </div>
+    );
+
   return (
     <div className="rounded-xl bg-surface-2 p-3 text-sm flex items-center gap-3">
       <div className="flex-1 min-w-0">

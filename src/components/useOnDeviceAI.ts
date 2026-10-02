@@ -12,11 +12,18 @@ export type AIStatus =
   | { phase: "ready"; modelId: string }
   | { phase: "error"; modelId: string; message: string };
 
+/**
+ * "required": the server has no model, so on-device AI is the only AI (offered to everyone who can run it).
+ * "optional": the server runs the model; on-device is an opt-in private mode.
+ */
+export type AIMode = "off" | "optional" | "required";
+
 const CONSENT_KEY = "roompot:on-device-ai";
 
-function rememberConsent() {
+function setConsent(on: boolean) {
   try {
-    localStorage.setItem(CONSENT_KEY, "1");
+    if (on) localStorage.setItem(CONSENT_KEY, "1");
+    else localStorage.removeItem(CONSENT_KEY);
   } catch {}
 }
 function hasConsent() {
@@ -28,12 +35,12 @@ function hasConsent() {
 }
 
 /** Manages the in-browser Gemma model: support check, one-time download, and the loaded engine. */
-export function useOnDeviceAI(enabled: boolean) {
-  const [status, setStatus] = useState<AIStatus>({ phase: enabled ? "checking" : "off" });
+export function useOnDeviceAI(mode: AIMode) {
+  const [status, setStatus] = useState<AIStatus>({ phase: mode === "off" ? "off" : "checking" });
   const engineRef = useRef<MLCEngineInterface | null>(null);
 
   const start = useCallback(async (modelId: string) => {
-    rememberConsent();
+    setConsent(true);
     setStatus({ phase: "loading", modelId, progress: 0, text: "Starting…" });
     const { loadEngine } = await import("@/lib/browser-ai");
     // Downloaded pieces stay cached, so on a flaky connection each retry picks up where the last one stopped.
@@ -57,25 +64,30 @@ export function useOnDeviceAI(enabled: boolean) {
     }
   }, []);
 
+  /** Turns private mode off. The download stays cached, so turning it back on is quick. */
+  const stop = useCallback((modelId: string) => {
+    setConsent(false);
+    engineRef.current = null;
+    setStatus({ phase: "idle", modelId });
+  }, []);
+
   useEffect(() => {
-    if (!enabled) return;
+    if (mode === "off") return;
     let cancelled = false;
     (async () => {
       const { checkSupport, isModelCached } = await import("@/lib/browser-ai");
       const support = await checkSupport();
       if (cancelled) return;
       if (!support.ok) return setStatus({ phase: "unsupported", reason: support.reason });
-      // Already downloaded on this device (or the user opted in before): load without asking again.
-      if (hasConsent() || (await isModelCached(support.modelId))) {
-        if (!cancelled) start(support.modelId);
-      } else if (!cancelled) {
-        setStatus({ phase: "idle", modelId: support.modelId });
-      }
+      const resume = hasConsent() || (mode === "required" && (await isModelCached(support.modelId)));
+      if (cancelled) return;
+      if (resume) start(support.modelId);
+      else setStatus({ phase: "idle", modelId: support.modelId });
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, start]);
+  }, [mode, start]);
 
-  return { status, engine: engineRef, start };
+  return { status, engine: engineRef, start, stop };
 }

@@ -8,6 +8,9 @@ import { loadLedger, money } from "@/lib/room";
 
 export const maxDuration = 120;
 
+/** Keeps one account from using up the shared AI quota. */
+const LIMIT_PER_HOUR = Number(process.env.CHAT_LIMIT_PER_HOUR ?? 60);
+
 type Body = {
   text?: string;
   /** Server mode: receipt photo for a vision model. */
@@ -19,6 +22,10 @@ type Body = {
 export async function POST(req: Request) {
   const user = await currentUser();
   if (!user?.room) return json({ error: "Not in a room" }, 401);
+
+  const recent = await Message.countDocuments({ author: user._id, createdAt: { $gt: new Date(Date.now() - 3_600_000) } });
+  if (recent >= LIMIT_PER_HOUR)
+    return json({ error: `You've sent ${LIMIT_PER_HOUR} messages in the last hour. Please wait a bit and try again.` }, 429);
 
   const body = (await req.json()) as Body;
   const text = (body.text ?? "").trim().slice(0, body.client?.receipt ? 4000 : 1000);

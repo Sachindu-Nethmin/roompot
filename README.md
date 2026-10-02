@@ -1,6 +1,6 @@
 # 🍳 RoomPot
 
-**A shared room budget for roommates who cook together.** Tell the group chat what you bought, like *"rice 1200, eggs 450, gas 3800"* or *"haal 2k, pol 3k 360"*, or send a photo of the bill. An open-weight model (Gemma) reads it, either **inside each roommate's own browser** or on your own machine through Ollama. It logs the cost under whoever is logged in, splits it between the room, and keeps a running tally of who owes whom. No more "machan, did I give you money for the gas last week?"
+**A shared room budget for roommates who cook together.** Tell the group chat what you bought, like *"rice 1200, eggs 450, gas 3800"*, or send a photo of the bill. An open-weight model (Gemma) reads it. It runs on a server by default so it works in any browser, and anyone can switch on **private mode** to run it inside their own browser instead. It logs the cost under whoever is logged in, splits it between the room, and keeps a running tally of who owes whom. No more "machan, did I give you money for the gas last week?"
 
 <p align="center">
   <img src="docs/chat.jpg" width="360" alt="Chat where roommates log purchases and RoomPot splits them" />
@@ -14,10 +14,11 @@ Four of us share a room and cook together. Whoever goes to the shop pays, and at
 
 ## Features
 
-- **Chat to log costs** in English, Sinhala or Singlish. The model pulls out items and prices, and understands shorthand like `1.2k`, `450/=` and `pol 3k 360` (three coconuts for 360).
+- **Chat to log costs** in plain English. The model pulls out items and prices, and understands shorthand like `1.2k` and `450/=`.
 - **Automatic payer**: the person logged in is the payer. *"Kasun bought bread 200"* credits Kasun instead.
 - **Partial splits**: *"shampoo for me and Nimal 800"* only splits between the two of you.
-- **Runs on your phone**: in browser mode, Gemma 2 2B runs on the phone's GPU with [WebLLM](https://github.com/mlc-ai/web-llm). There's no AI server, and messages never leave the device.
+- **Works in any browser**: by default Gemma 4 runs on a server, so there's nothing to install or download.
+- **Private mode**: one tap runs Gemma 2 2B on the phone's own GPU with [WebLLM](https://github.com/mlc-ai/web-llm). After a one-time download, messages and photos never leave the device.
 - **Receipt photos**: snap the shop bill. In browser mode [Tesseract.js](https://github.com/naptha/tesseract.js) reads it on the phone and Gemma picks out the items; with Ollama, Gemma's vision reads it directly. Totals, cash and change are skipped.
 - **Average daily spend**: a rolling 30-day average for the room and per person, plus today, this month (with a projection), last 7 days versus the week before, and a 30-day daily spend chart.
 - **Settle up**: balances for every member and the fewest payments that clear all debts, with a *Mark paid* button. You can also just say *"gave Kasun 1500"* in the chat.
@@ -27,19 +28,21 @@ Four of us share a room and cook together. Whoever goes to the shop pays, and at
 
 ## Why open models
 
-- **Our money stays with us.** Who bought what and who owes whom is private. In browser mode, each message and receipt photo is processed on the phone that sent it; the server only receives the extracted items and amounts. Nothing goes to a third-party AI API.
+- **Our money stays with us if we want it to.** Who bought what and who owes whom is private. With private mode on, each message and receipt photo is processed on the phone that sent it, and the server only receives the extracted items and amounts. That's only possible because the model's weights are open.
 - **Free to run.** No per-message bill for a tool that gets used ten times a day.
 - **Swap or tune the model.** One environment variable switches between Gemma sizes, any other Ollama model, or a hosted open model. The prompt is plain text in [`src/lib/parse.ts`](src/lib/parse.ts) and can be adjusted for your own language and slang.
 
 ## AI modes
 
-| `LLM_PROVIDER` | Where Gemma runs | Good for |
+| `LLM_PROVIDER` | Default AI | Good for |
 |---|---|---|
-| `browser` | On each person's phone or laptop (WebLLM + WebGPU). One-time download of about 1.4 GB, cached afterwards. | Public hosting at no cost, best privacy |
-| `ollama` | On your own computer (default `gemma4:E4B`, can read receipt photos directly) | Running it at home on a laptop |
-| `openai` | Any OpenAI-compatible server hosting an open model | When phones are too old for WebGPU |
+| `openai` | Gemma 4 on any OpenAI-compatible host, e.g. Google AI Studio's free tier (`gemma-4-26b-a4b-it`). Reads receipt photos directly. | **Public hosting**: works in every browser, no download |
+| `ollama` | Gemma on your own computer (default `gemma4:E4B`) | Running it at home on a laptop |
+| `browser` | No server model. Every person runs Gemma 2 2B in their own browser. | Fully private rooms with recent phones |
 
-Browser mode needs WebGPU: recent Chrome or Edge on Android, Windows, macOS or ChromeOS, or Safari on iOS 26+. Devices without it fall back to a rule-based parser that still understands `item price` messages and receipt lines.
+In every mode, people whose browser supports WebGPU (recent Chrome or Edge, or Safari on iOS 26+) can turn on **private mode** to run Gemma on their own device. That's a one-time download of about 1.4 GB, cached afterwards. If no model is reachable, a rule-based parser still logs `item price` messages and receipt lines.
+
+Each account can send `CHAT_LIMIT_PER_HOUR` messages an hour (default 60), so one person can't use up a shared free AI quota.
 
 ## Run it locally
 
@@ -64,19 +67,21 @@ Want to see it with data? `npm run seed:demo` creates **Room 12B** with three we
 |---|---|---|
 | `MONGODB_URI` | `mongodb://127.0.0.1:27017/roompot` | Local MongoDB or MongoDB Atlas |
 | `SESSION_SECRET` | dev value | Set a long random string in production |
-| `LLM_PROVIDER` | `ollama` | `ollama` or `openai` (any OpenAI-compatible server) |
+| `LLM_PROVIDER` | `ollama` | `openai`, `ollama` or `browser` (see AI modes) |
 | `LLM_BASE_URL` | `http://127.0.0.1:11434` | Ollama URL, or e.g. `https://generativelanguage.googleapis.com/v1beta/openai` |
-| `LLM_MODEL` | `gemma4:E4B` | e.g. `gemma3:4b`, `gemma-3-27b-it` |
+| `LLM_MODEL` | `gemma4:E4B` | e.g. `gemma-4-26b-a4b-it` on Google AI Studio |
 | `LLM_API_KEY` | | Only for hosted providers |
 | `MAX_ROOM_MEMBERS` | `8` | |
+| `CHAT_LIMIT_PER_HOUR` | `60` | Messages per account per hour |
 
 ## Deploy
 
-[`render.yaml`](render.yaml) deploys RoomPot to Render's free plan in browser mode, so there's no model server to pay for. You need a free MongoDB Atlas cluster:
+[`render.yaml`](render.yaml) deploys RoomPot to Render's free plan with Gemma 4 from Google AI Studio. Everything below is free:
 
-1. Create an Atlas cluster, add a database user, allow access from anywhere (`0.0.0.0/0`), and copy the connection string.
-2. On Render choose **New → Blueprint**, pick this repository, and paste the connection string as `MONGODB_URI`.
-3. Share the `onrender.com` link with your roommates.
+1. Create a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster, add a database user, allow access from anywhere (`0.0.0.0/0`), and copy the connection string.
+2. Get a free API key at [aistudio.google.com](https://aistudio.google.com).
+3. On Render choose **New → Blueprint**, pick this repository, and paste the two values as `MONGODB_URI` and `LLM_API_KEY`.
+4. Share the `onrender.com` link. The free plan sleeps after 15 idle minutes, so the first visit after that takes about a minute to wake up.
 
 ## How it works
 

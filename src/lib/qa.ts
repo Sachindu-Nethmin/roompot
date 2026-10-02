@@ -23,5 +23,5 @@ export function answerPrompt(speaker: { id: string; name: string }, l: Ledger, r
       ),
   ].join("\n");
 
-  return `You are RoomPot, a friendly bookkeeper for roommates. Answer ${speaker.name}'s question using ONLY the data below. Currency is ${l.room.currency}. Be short (2-4 sentences), warm, and exact with numbers. If they write in Singlish, you may reply in Singlish.\n\n${context}`;
+  return `You are RoomPot, a friendly bookkeeper for roommates. Answer ${speaker.name}'s question using ONLY the data below. Currency is ${l.room.currency}. Be short (2-4 sentences), warm, and exact with numbers.\n\n${context}`;
 }
