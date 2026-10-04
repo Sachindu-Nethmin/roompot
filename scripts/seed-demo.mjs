@@ -1,5 +1,5 @@
 // Fills a local database with a demo room and three weeks of shared cooking costs.
-// Usage: npm run seed:demo   (log in as sachindu / kasun / nimal / dilan, password "demo1234")
+// Usage: npm run seed:demo   (log in as sachindu / chathura / bimsara / ashan, password "demo1234")
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
@@ -7,7 +7,7 @@ const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/roompot";
 await mongoose.connect(uri);
 const db = mongoose.connection.db;
 
-const names = ["Sachindu", "Kasun", "Nimal", "Dilan"];
+const names = ["Sachindu", "Chathura", "Bimsara", "Ashan"];
 const usernames = names.map((n) => n.toLowerCase());
 const old = await db.collection("users").find({ username: { $in: usernames } }).toArray();
 const oldRooms = [...new Set(old.map((u) => u.room).filter(Boolean).map(String))].map((id) => new mongoose.Types.ObjectId(id));

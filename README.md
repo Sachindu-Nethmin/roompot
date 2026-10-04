@@ -15,13 +15,13 @@ Four of us share a room and cook together. Whoever goes to the shop pays, and at
 ## Features
 
 - **Chat to log costs** in plain English. The model pulls out items and prices, and understands shorthand like `1.2k` and `450/=`.
-- **Automatic payer**: the person logged in is the payer. *"Kasun bought bread 200"* credits Kasun instead.
-- **Partial splits**: *"shampoo for me and Nimal 800"* only splits between the two of you.
+- **Automatic payer**: the person logged in is the payer. *"Chathura bought bread 200"* credits Chathura instead.
+- **Partial splits**: *"shampoo for me and Bimsara 800"* only splits between the two of you.
 - **Works in any browser**: by default Gemma 4 runs on a server, so there's nothing to install or download.
 - **Private mode**: one tap runs Gemma 2 2B on the phone's own GPU with [WebLLM](https://github.com/mlc-ai/web-llm). After a one-time download, messages and photos never leave the device.
 - **Receipt photos**: snap the shop bill. In browser mode [Tesseract.js](https://github.com/naptha/tesseract.js) reads it on the phone and Gemma picks out the items; with Ollama, Gemma's vision reads it directly. Totals, cash and change are skipped.
 - **Average daily spend**: a rolling 30-day average for the room and per person, plus today, this month (with a projection), last 7 days versus the week before, and a 30-day daily spend chart.
-- **Settle up**: balances for every member and the fewest payments that clear all debts, with a *Mark paid* button. You can also just say *"gave Kasun 1500"* in the chat.
+- **Settle up**: balances for every member and the fewest payments that clear all debts, with a *Mark paid* button. You can also just say *"gave Chathura 1500"* in the chat.
 - **Ask questions**: *"how much did we spend on gas?"*, *"how much do I owe?"*, answered from the room's own data.
 - **Keeps working offline**: if the model is unavailable, a rule-based parser still logs `item price` messages.
 - Invite code to join a room, works on phones, light and dark mode.
@@ -59,7 +59,7 @@ npm run dev
 
 Open http://localhost:3000, sign up, create a room, and share the invite code with your roommates. To let them use it from their phones on the same Wi-Fi, open `http://<your-laptop-ip>:3000`.
 
-Want to see it with data? `npm run seed:demo` creates **Room 12B** with three weeks of cooking costs. Log in as `sachindu`, `kasun`, `nimal` or `dilan` with password `demo1234`.
+Want to see it with data? `npm run seed:demo` creates **Room 12B** with three weeks of cooking costs. Log in as `sachindu`, `chathura`, `bimsara` or `ashan` with password `demo1234`.
 
 ## Configuration
 

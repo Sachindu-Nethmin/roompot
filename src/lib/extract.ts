@@ -77,9 +77,9 @@ Rules:
 - Prices: "1.2k" = 1200, "2k" = 2000, "Rs.450" = 450, "450/=" = 450. Amounts are plain numbers.
 - If one price covers several things ("rice and dhal 1500"), make ONE item "rice and dhal".
 - Keep sizes and counts that are written ("rice 5kg", "eggs x10"). Never add ones that are not.
-- "paidBy": a member name only if the message says someone else paid ("Kasun bought bread 200"). Otherwise null (the speaker paid).
-- "splitWith": member names only if the message limits who shares the cost ("shampoo for me and Nimal 800"). Include the speaker if they say "me". Empty list means everyone shares.
-- "settlement": the speaker paid back money to a member ("gave Kasun 1500", "paid Nimal 500"). Set settleTo and settleAmount.
+- "paidBy": a member name only if the message says someone else paid ("Chathura bought bread 200"). Otherwise null (the speaker paid).
+- "splitWith": member names only if the message limits who shares the cost ("shampoo for me and Bimsara 800"). Include the speaker if they say "me". Empty list means everyone shares.
+- "settlement": the speaker paid back money to a member ("gave Chathura 1500", "paid Bimsara 500"). Set settleTo and settleAmount.
 - "question": asking about spending, balances, who owes what, averages, history.
 - "other": greetings or anything else. Put a short friendly reply in "reply". If they mention buying something but give no price, ask for the price in "reply".
 - Never invent prices.`;
@@ -111,7 +111,7 @@ export const validAmount = (a: number) => Number.isFinite(a) && a > 0 && a < 10_
 export function normalizeParsed(raw: unknown, text: string, members: Member[], speaker: Member): Parsed {
   const p = parsedSchema.parse(raw);
   const splitAmong = p.splitWith.map((n) => matchMember(n, members, speaker)).filter((m): m is Member => !!m);
-  // Models sometimes drop the speaker from "for me and Nimal"; the words are unambiguous, so add them back.
+  // Models sometimes drop the speaker from "for me and Bimsara"; the words are unambiguous, so add them back.
   if (splitAmong.length && /\b(me|us|we|myself|mata|mama|apita|api)\b/i.test(text)) splitAmong.push(speaker);
   return {
     intent: p.intent,

@@ -43,7 +43,7 @@ type State = {
   };
 };
 
-const EXAMPLES = ["rice 1200, eggs 450, gas 3800", "Kasun bought bread 200", "gave Kasun 1500", "what's our average daily spend?"];
+const EXAMPLES = ["rice 1200, eggs 450, gas 3800", "Chathura bought bread 200", "gave Chathura 1500", "what's our average daily spend?"];
 
 export default function Dashboard() {
   const router = useRouter();
