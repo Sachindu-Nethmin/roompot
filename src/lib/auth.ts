@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { connectDb } from "./db";
 import { User } from "./models";
@@ -15,10 +15,12 @@ export async function setSession(userId: string) {
     .setExpirationTime("60d")
     .sign(secret);
   const jar = await cookies();
+  // Secure cookies only work over HTTPS; behind a host's proxy the original scheme is in x-forwarded-proto.
+  const proto = (await headers()).get("x-forwarded-proto") ?? "http";
   jar.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: proto.split(",")[0].trim() === "https",
     path: "/",
     maxAge: 60 * 60 * 24 * 60,
   });
